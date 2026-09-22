@@ -561,11 +561,32 @@ function flattenText(messages) {
 
 function renderReply(b, parts) {
   b.textContent = "";
-  const texts = parts.filter(p => p && (p.kind === "text" || (!p.kind && p.text))).map(p => p.text || "");
-  const a2ui = parts.filter(p => p && p.kind === "a2ui" && p.data).map(p => p.data);
+  const a2ui = [];
+  const texts = [];
 
-  let cleanTexts = texts.filter(t => !t.trim().startsWith("{'id':") && !t.trim().startsWith("{'metadata':"));
-  const textStr = cleanTexts.join("\n").trim();
+  for (const p of parts) {
+    if (!p) continue;
+    if (p.kind === "a2ui" && p.data) {
+      a2ui.push(p.data);
+    } else if (p.kind === "text" || p.text) {
+      const txt = (p.text || "").trim();
+      if (txt.startsWith("{'data':") || txt.startsWith('{"data":') || txt.includes("'surfaceUpdate':") || txt.includes('"surfaceUpdate":')) {
+        try {
+          const jsonStr = txt.replace(/'/g, '"').replace(/True/g, 'true').replace(/False/g, 'false').replace(/None/g, 'null');
+          const jsonObj = JSON.parse(jsonStr);
+          const dataContent = jsonObj.data || jsonObj;
+          if (dataContent.surfaceUpdate || dataContent.beginRendering || dataContent.surfaceId) {
+            a2ui.push(dataContent);
+            continue;
+          }
+        } catch (e) {}
+      }
+      if (txt.startsWith("{'id':") || txt.startsWith("{'metadata':") || txt.startsWith("{'name':")) continue;
+      texts.push(txt);
+    }
+  }
+
+  const textStr = texts.join("\n").trim();
   if (textStr) {
     const formattedDiv = el("div");
     formattedDiv.innerHTML = textStr

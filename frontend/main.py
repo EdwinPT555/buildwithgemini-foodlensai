@@ -218,25 +218,43 @@ def _extract_parts(parts: list) -> list[dict]:
 
         data = d.get("data")
         if data is not None:
+            # 1. Parse stringified data payloads (e.g. single-quoted dict string from A2A)
+            data_obj = None
+            if isinstance(data, dict):
+                data_obj = data
+            elif isinstance(data, str):
+                data_obj = _try_parse_dict_or_json(data)
+                if not data_obj:
+                    try:
+                        data_obj = ast.literal_eval(data.replace("\n", "\\n"))
+                    except Exception:
+                        pass
+
+            if isinstance(data_obj, dict):
+                # Check for nested data envelope
+                inner = data_obj.get("data") if ("data" in data_obj and isinstance(data_obj["data"], dict)) else data_obj
+                if any(k in inner for k in ("beginRendering", "surfaceUpdate", "surfaceId")):
+                    out.append({"kind": "a2ui", "data": inner})
+                    continue
+                if any(k in data_obj for k in ("beginRendering", "surfaceUpdate", "surfaceId")):
+                    out.append({"kind": "a2ui", "data": data_obj})
+                    continue
+
+                # Filter out raw function call / response dict dumps
+                if any(k in data_obj for k in ("args", "response")) or ("name" in data_obj and "id" in data_obj):
+                    continue
+
             meta = d.get("metadata") or {}
             mime = meta.get("mimeType") if isinstance(meta, dict) else None
-            if mime == _A2UI_MIME or (
-                isinstance(data, dict)
-                and any(k in data for k in ("beginRendering", "surfaceUpdate", "surfaceId"))
-            ):
-                out.append({"kind": "a2ui", "data": data})
+            if mime == _A2UI_MIME:
+                out.append({"kind": "a2ui", "data": data_obj if data_obj else data})
                 continue
-            
-            # Filter out raw function call / response dict dumps in data parts
-            if isinstance(data, dict):
-                if any(k in data for k in ("args", "response")) or ("name" in data and "id" in data):
-                    continue
             
             data_str = str(data)
             if (
-                ("'name':" in data_str or "'args':" in data_str or "'response':" in data_str)
-                and ("'id':" in data_str or "adk-" in data_str)
-            ):
+                ("'name':" in data_str or "'args':" in data_str or "'response':" in data_str or '"name":' in data_str)
+                and ("'id':" in data_str or "adk-" in data_str or '"id":' in data_str)
+            ) or data_str.strip().startswith(("{'id':", "{'args':", "{'name':")):
                 continue
 
             out.append({"kind": "text", "text": data_str})
