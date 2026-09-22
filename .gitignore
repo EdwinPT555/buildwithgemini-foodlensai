@@ -211,3 +211,12 @@ tools/a2a-inspector/
 *.pem
 *-key.json
 credentials*.json
+
+# Media & Large Datasets
+*.gif
+*.webm
+*.mp4
+demo.gif
+data/
+.git/
+

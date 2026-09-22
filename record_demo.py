@@ -22,15 +22,15 @@ async def record_demo():
         await page.goto(FRONTEND_URL, wait_until="networkidle")
         await page.wait_for_timeout(2000)
 
-        # 1. First interaction: Barcode Lookup
-        print("Executing Prompt 1: Barcode Lookup...")
-        await page.fill("#input", "🔍 Check barcode 073700530001")
+        # 1. First interaction: Barcode Lookup & Auto DB Ingestion
+        print("Executing Prompt 1: Barcode Lookup 5449000000996...")
+        await page.fill("#input", "🔍 Check barcode 5449000000996")
         await page.wait_for_timeout(1000)
         await page.click("button[type='submit']")
         
         # Wait for agent response to appear (A2UI card or text bubble)
         await page.wait_for_selector(".msg-row.agent", timeout=45000)
-        await page.wait_for_timeout(6000)
+        await page.wait_for_timeout(8000)
 
         # 2. Second interaction: Botanical RAG Corpus Lookup
         print("Executing Prompt 2: Botanical RAG Corpus Lookup...")

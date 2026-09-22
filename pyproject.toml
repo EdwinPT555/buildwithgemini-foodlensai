@@ -18,6 +18,8 @@ dependencies = [
     "protobuf>=6.31.1,<7.0.0",
     "google-cloud-firestore>=2.31.0",
     "a2ui-agent-sdk>=0.2.4",
+    "imageio>=2.37.4",
+    "imageio-ffmpeg>=0.6.0",
 ]
 requires-python = ">=3.11,<3.14"
 

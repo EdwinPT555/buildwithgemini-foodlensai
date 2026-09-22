@@ -183,8 +183,34 @@ def _extract_parts(parts: list) -> list[dict]:
                     out.append({"kind": "a2ui", "data": parsed_dict})
                     continue
 
-            # Quick string prefix check for tool dumps
-            if text.startswith("{'id':") or text.startswith("{'args':") or text.startswith("{'name':"):
+            # 2. Check stringified A2UI data envelopes or Python dicts
+            if any(k in text for k in ("'surfaceUpdate':", "'beginRendering':", '"surfaceUpdate":', '"beginRendering":')):
+                try:
+                    val_to_eval = text.replace("\n", "\\n")
+                    res = ast.literal_eval(val_to_eval)
+                    if isinstance(res, dict):
+                        data_obj = res.get("data") if ("data" in res and isinstance(res["data"], dict)) else res
+                        out.append({"kind": "a2ui", "data": data_obj})
+                        continue
+                except Exception:
+                    pass
+                continue
+
+            # 3. Filter out raw functionCall / functionResponse debug dumps
+            if (
+                ("'name':" in text or "'args':" in text or "'response':" in text or '"name":' in text)
+                and ("'id':" in text or "adk-" in text or '"id":' in text)
+            ) or text.strip().startswith(("{'id':", "{'args':", "{'name':")):
+                continue
+
+            # Check if text is a raw stringified dict starting with {'metadata': or {'data':
+            if text.strip().startswith(("{'metadata':", "{'kind':", "{'data':", '{"metadata":', '{"kind":', '{"data":')):
+                parsed_dict = _try_parse_dict_or_json(text)
+                if parsed_dict:
+                    data_obj = parsed_dict.get("data") if ("data" in parsed_dict and isinstance(parsed_dict["data"], dict)) else parsed_dict
+                    if isinstance(data_obj, dict) and any(k in data_obj for k in ("beginRendering", "surfaceUpdate", "surfaceId")):
+                        out.append({"kind": "a2ui", "data": data_obj})
+                        continue
                 continue
 
             out.append({"kind": "text", "text": text})
@@ -199,8 +225,21 @@ def _extract_parts(parts: list) -> list[dict]:
                 and any(k in data for k in ("beginRendering", "surfaceUpdate", "surfaceId"))
             ):
                 out.append({"kind": "a2ui", "data": data})
-            else:
-                out.append({"kind": "text", "text": str(data)})
+                continue
+            
+            # Filter out raw function call / response dict dumps in data parts
+            if isinstance(data, dict):
+                if any(k in data for k in ("args", "response")) or ("name" in data and "id" in data):
+                    continue
+            
+            data_str = str(data)
+            if (
+                ("'name':" in data_str or "'args':" in data_str or "'response':" in data_str)
+                and ("'id':" in data_str or "adk-" in data_str)
+            ):
+                continue
+
+            out.append({"kind": "text", "text": data_str})
             continue
 
         url = d.get("url") or (d.get("file") or {}).get("uri")

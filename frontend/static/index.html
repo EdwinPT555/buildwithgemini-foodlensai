@@ -290,6 +290,61 @@
   button[type="submit"]:active {
     transform: translateY(0);
   }
+  /* Fancy Health Card Badges & Pills */
+  .health-badge-container {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 0.4rem 0;
+    padding: 0.6rem 0.85rem;
+    background: #f8fafc;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+
+  .health-score-pill {
+    padding: 0.3rem 0.75rem;
+    border-radius: 20px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: #ffffff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .health-score-pill.high { background: linear-gradient(135deg, #059669 0%, #10b981 100%); }
+  .health-score-pill.medium { background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%); }
+  .health-score-pill.low { background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%); }
+
+  .progress-bar-bg {
+    flex: 1;
+    height: 8px;
+    background: #e2e8f0;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.5s ease;
+  }
+
+  .tag-pill-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.25rem;
+  }
+  .tag-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.25rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    font-weight: 500;
+  }
+  .tag-pill.positive { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+  .tag-pill.negative { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
 </style>
 </head>
 <body>
@@ -399,11 +454,66 @@ function buildNode(id, comps, seen) {
       kids().forEach(n => d.appendChild(n)); return d;
     }
     case "Text": {
-      const t = el("div", "a2text");
+      const rawText = boundStr(props.text);
       const hint = String(props.usageHint || "body").toLowerCase();
+
+      // Fancy Health Score Badge rendering
+      const scoreMatch = rawText.match(/health\s*score:\s*(\d{1,3})/i);
+      if (scoreMatch) {
+        const score = parseInt(scoreMatch[1], 10);
+        const container = el("div", "health-badge-container");
+        let colorClass = "high", fillColor = "#10b981";
+        if (score < 45) { colorClass = "low"; fillColor = "#ef4444"; }
+        else if (score < 70) { colorClass = "medium"; fillColor = "#f59e0b"; }
+
+        const pill = el("span", "health-score-pill " + colorClass, `${score}/100`);
+        const bg = el("div", "progress-bar-bg");
+        const fill = el("div", "progress-bar-fill");
+        fill.style.width = Math.min(score, 100) + "%";
+        fill.style.backgroundColor = fillColor;
+        bg.appendChild(fill);
+
+        const label = el("span", "a2text a2-caption", score >= 70 ? "Excellent Choice" : (score >= 45 ? "Moderate Choice" : "Caution / Processed"));
+        container.appendChild(pill);
+        container.appendChild(bg);
+        container.appendChild(label);
+        return container;
+      }
+
+      // Positive Nutrients Tag Pill Rendering
+      if (/^(positive nutrients|good ingredients|beneficial nutrients):/i.test(rawText)) {
+        const d = el("div", "a2col");
+        const title = el("div", "a2text a2-h4", rawText.split(":")[0] + ":");
+        const tagsDiv = el("div", "tag-pill-container");
+        const items = rawText.substring(rawText.indexOf(":") + 1).split(/[,;\n]/).map(s => s.replace(/^[-•\s]+/, "").trim()).filter(Boolean);
+        items.forEach(item => tagsDiv.appendChild(el("span", "tag-pill positive", "🌱 " + item)));
+        d.appendChild(title);
+        d.appendChild(tagsDiv);
+        return d;
+      }
+
+      // Negative Ingredients Tag Pill Rendering
+      if (/^(negative ingredients|bad ingredients|ingredients to watch out for):/i.test(rawText)) {
+        const d = el("div", "a2col");
+        const title = el("div", "a2text a2-h4", rawText.split(":")[0] + ":");
+        const tagsDiv = el("div", "tag-pill-container");
+        const items = rawText.substring(rawText.indexOf(":") + 1).split(/[,;\n]/).map(s => s.replace(/^[-•\s]+/, "").trim()).filter(Boolean);
+        items.forEach(item => tagsDiv.appendChild(el("span", "tag-pill negative", "⚠️ " + item)));
+        d.appendChild(title);
+        d.appendChild(tagsDiv);
+        return d;
+      }
+
+      const t = el("div", "a2text");
       if (["h1", "h2", "h3", "h4", "h5", "h6"].includes(hint)) t.classList.add("a2-" + hint);
       else if (hint === "caption") t.classList.add("a2-caption");
-      t.textContent = boundStr(props.text);
+
+      let formatted = rawText
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+        .replace(/\*(.*?)\*/g, "<em>$1</em>")
+        .replace(/\n/g, "<br>");
+      t.innerHTML = formatted;
       return t;
     }
     case "Divider":
@@ -454,8 +564,17 @@ function renderReply(b, parts) {
   const texts = parts.filter(p => p && (p.kind === "text" || (!p.kind && p.text))).map(p => p.text || "");
   const a2ui = parts.filter(p => p && p.kind === "a2ui" && p.data).map(p => p.data);
 
-  const textStr = texts.join("\n").trim();
-  if (textStr) b.appendChild(el("div", null, textStr));
+  let cleanTexts = texts.filter(t => !t.trim().startsWith("{'id':") && !t.trim().startsWith("{'metadata':"));
+  const textStr = cleanTexts.join("\n").trim();
+  if (textStr) {
+    const formattedDiv = el("div");
+    formattedDiv.innerHTML = textStr
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*(.*?)\*/g, "<em>$1</em>")
+      .replace(/\n/g, "<br>");
+    b.appendChild(formattedDiv);
+  }
 
   if (a2ui.length) {
     b.classList.add("rich");
