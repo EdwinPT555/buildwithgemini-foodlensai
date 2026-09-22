@@ -2,6 +2,8 @@
 
 ![FoodlensAI Demo](demo.gif)
 
+> 📹 **Live Demo**: Featuring unknown barcode auto-ingestion (`5449000000996` - Coca-Cola), interactive A2UI health cards with progress score pills (`22/100`), ingredient warning badges (`⚠️ Phosphoric Acid`), and grounded botanical RAG search.
+
 **FoodlensAI** is an AI-powered health, nutrition, and food product assistant built with the **Google Agent Development Kit (ADK)**, **Vertex AI Agent Runtime**, **Firestore**, **Google Cloud Storage**, **Vertex AI RAG Engine**, and **A2UI (Agent-to-User Interface)**.
 
 It allows users to look up packaged foods by barcode, analyze ingredient sticker text, store dietary health preferences and allergies across sessions, and consult a grounded botanical RAG corpus for herbal inquiries.
